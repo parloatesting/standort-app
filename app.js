@@ -1,143 +1,145 @@
-// Sprache des Browsers abrufen
-const userLanguage = navigator.language || navigator.userLanguage;
+document.addEventListener("DOMContentLoaded", function() {
+    // Sprache erkennen
+    const userLanguage = navigator.language || navigator.userLanguage;
+    console.log("Erkannte Sprache:", userLanguage);
 
-// Funktion zur Bestimmung der Sprache
-function getLanguage() {
-    if (userLanguage.startsWith("de")) {
-        return "de"; // Deutsch
-    } else {
-        return "en"; // Englisch als Standard
+    // Übersetzungen basierend auf der erkannten Sprache
+    const translations = {
+        de: {
+            title: "Standort-Tracker",
+            buttonText: "Standort senden",
+            statusDefault: "",
+            locating: "Standort wird ermittelt...",
+            geoNotSupported: "Geolocation wird von diesem Gerät nicht unterstützt.",
+            locationSuccess: "Standort erfolgreich gesendet!",
+            locationError: "Fehler bei der Standortermittlung:",
+            sendError: "Fehler beim Senden des Standorts.",
+        },
+        en: {
+            title: "Location Tracker",
+            buttonText: "Send Location",
+            statusDefault: "",
+            locating: "Locating...",
+            geoNotSupported: "Geolocation is not supported by this device.",
+            locationSuccess: "Location successfully sent!",
+            locationError: "Error getting location:",
+            sendError: "Error sending location.",
+        }
+    };
+
+    // Wähle die Übersetzungen basierend auf der Sprache oder falle auf Englisch zurück
+    const lang = userLanguage.startsWith("de") ? "de" : "en";
+    const t = translations[lang];
+
+    // HTML-Inhalte übersetzen
+    document.title = t.title;
+    document.querySelector("h1").textContent = t.title;
+    document.getElementById("sendLocationBtn").textContent = t.buttonText;
+    document.getElementById("status").textContent = t.statusDefault;
+
+    // Event-Listener für den Button
+    document.getElementById("sendLocationBtn").addEventListener("click", function() {
+        const statusElement = document.getElementById("status");
+        statusElement.textContent = t.locating;
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(success, error);
+        } else {
+            statusElement.textContent = t.geoNotSupported;
+            sendErrorToAirtable(t.geoNotSupported);
+        }
+
+        function success(position) {
+            const latitude = position.coords.latitude;
+            const longitude = position.coords.longitude;
+
+            statusElement.textContent = `(${latitude}, ${longitude})`;
+
+            sendLocationToAirtable(latitude, longitude);
+        }
+
+        function error(err) {
+            statusElement.textContent = `${t.locationError} ${err.message}`;
+            sendErrorToAirtable(`${t.locationError} ${err.message}`);
+        }
+    });
+
+    function sendLocationToAirtable(lat, long) {
+        const airtableApiKey = 'patKGZansVOgQzmoO.cbba17752195e08b14aef61da396fbdeffeb5acfe58eaacf94dbdbe9f7d7fdbc';    // Airtable API-Schlüssel
+        const airtableBaseId = 'appECl30m16Rv1iTS';           // Airtable Base-ID
+        const airtableTableName = 'currentLocation';        // Airtable Tabellenname
+        const recordId = 'rec41O8E9RVes5BvP';               // ID des Datensatzes
+
+        const url = `https://api.airtable.com/v0/${airtableBaseId}/${airtableTableName}/${recordId}`;
+        const data = {
+            fields: {
+                "Latitude": lat,
+                "Longitude": long,
+                "Error": ""  // Lösche Fehler, wenn die Koordinaten erfolgreich sind
+            }
+        };
+
+        fetch(url, {
+            method: "PATCH",
+            headers: {
+                "Authorization": `Bearer ${airtableApiKey}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(errData => {
+                    throw new Error(`Fehler ${response.status}: ${errData.error.message}`);
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            statusElement.textContent = t.locationSuccess;
+        })
+        .catch(error => {
+            statusElement.textContent = t.sendError;
+            console.error("Error:", error);
+        });
     }
-}
 
-// Aktuelle Sprache festlegen
-const currentLanguage = getLanguage();
+    function sendErrorToAirtable(errorMessage) {
+        const airtableApiKey = 'patKGZansVOgQzmoO.cbba17752195e08b14aef61da396fbdeffeb5acfe58eaacf94dbdbe9f7d7fdbc';    // Airtable API-Schlüssel
+        const airtableBaseId = 'appECl30m16Rv1iTS';           // Airtable Base-ID
+        const airtableTableName = 'currentLocation';        // Airtable Tabellenname
+        const recordId = 'rec41O8E9RVes5BvP';               // ID des Datensatzes
 
-// Übersetzungen
-const translations = {
-    de: {
-        statusFetching: "Standort wird ermittelt...",
-        statusSuccess: "Standort erfolgreich gesendet!",
-        statusError: "Fehler beim Senden des Standorts.",
-        geolocationNotSupported: "Geolocation wird von diesem Gerät nicht unterstützt.",
-        geolocationError: "Fehler bei der Standortermittlung: "
-    },
-    en: {
-        statusFetching: "Fetching location...",
-        statusSuccess: "Location successfully sent!",
-        statusError: "Error sending location.",
-        geolocationNotSupported: "Geolocation is not supported by this device.",
-        geolocationError: "Error retrieving location: "
-    }
-};
+        const url = `https://api.airtable.com/v0/${airtableBaseId}/${airtableTableName}/${recordId}`;
+        const data = {
+            fields: {
+                "Error": errorMessage,
+                "Latitude": "",  // Leeren, da keine Koordinaten ermittelt wurden
+                "Longitude": ""  // Leeren, da keine Koordinaten ermittelt wurden
+            }
+        };
 
-// Übersetzte Texte verwenden
-function getTranslation(key) {
-    return translations[currentLanguage][key];
-}
-
-// Event-Listener für den Button
-document.getElementById("sendLocationBtn").addEventListener("click", function() {
-    const statusElement = document.getElementById("status");
-    statusElement.textContent = getTranslation("statusFetching");
-
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(success, error);
-    } else {
-        statusElement.textContent = getTranslation("geolocationNotSupported");
-        sendErrorToAirtable(getTranslation("geolocationNotSupported"));
-    }
-
-    function success(position) {
-        const latitude = position.coords.latitude;
-        const longitude = position.coords.longitude;
-
-        statusElement.textContent = `Standort: (${latitude}, ${longitude})`;
-
-        sendLocationToAirtable(latitude, longitude);
-    }
-
-    function error(err) {
-        statusElement.textContent = `${getTranslation("geolocationError")}${err.message}`;
-        sendErrorToAirtable(`${getTranslation("geolocationError")}${err.message}`);
+        fetch(url, {
+            method: "PATCH",
+            headers: {
+                "Authorization": `Bearer ${airtableApiKey}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(errData => {
+                    throw new Error(`Fehler ${response.status}: ${errData.error.message}`);
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log("Fehlermeldung erfolgreich an Airtable gesendet:", data);
+        })
+        .catch(error => {
+            console.error("Fehler beim Senden der Fehlermeldung:", error);
+        });
     }
 });
-
-function sendLocationToAirtable(lat, long) {
-    const airtableApiKey = 'patKGZansVOgQzmoO.cbba17752195e08b14aef61da396fbdeffeb5acfe58eaacf94dbdbe9f7d7fdbc';    // Airtable API-Schlüssel
-    const airtableBaseId = 'appECl30m16Rv1iTS';           // Airtable Base-ID
-    const airtableTableName = 'currentLocation';        // Airtable Tabellenname
-    const recordId = 'rec41O8E9RVes5BvP';               // ID des Datensatzes, den du überschreiben möchtest
-
-    const url = `https://api.airtable.com/v0/${airtableBaseId}/${airtableTableName}/${recordId}`;
-    const data = {
-        fields: {
-            "Latitude": lat,
-            "Longitude": long,
-            "Error": ""  // Fehler wird gelöscht, wenn der Standort erfolgreich ist
-        }
-    };
-
-    fetch(url, {
-        method: "PATCH",
-        headers: {
-            "Authorization": `Bearer ${airtableApiKey}`,
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(data)
-    })
-    .then(response => {
-        if (!response.ok) {
-            return response.json().then(errData => {
-                throw new Error(`Fehler ${response.status}: ${errData.error.message}`);
-            });
-        }
-        return response.json();
-    })
-    .then(data => {
-        document.getElementById("status").textContent = getTranslation("statusSuccess");
-    })
-    .catch(error => {
-        document.getElementById("status").textContent = getTranslation("statusError");
-        console.error("Error:", error);
-    });
-}
-
-function sendErrorToAirtable(errorMessage) {
-    const airtableApiKey = 'patKGZansVOgQzmoO.cbba17752195e08b14aef61da396fbdeffeb5acfe58eaacf94dbdbe9f7d7fdbc';    // Airtable API-Schlüssel
-    const airtableBaseId = 'appECl30m16Rv1iTS';           // Airtable Base-ID
-    const airtableTableName = 'currentLocation';        // Airtable Tabellenname
-    const recordId = 'rec41O8E9RVes5BvP';               // ID des Datensatzes, den du überschreiben möchtest
-
-    const url = `https://api.airtable.com/v0/${airtableBaseId}/${airtableTableName}/${recordId}`;
-    const data = {
-        fields: {
-            "Error": errorMessage,
-            "Latitude": "",  // Leeren, da keine Koordinaten ermittelt wurden
-            "Longitude": ""  // Leeren, da keine Koordinaten ermittelt wurden
-        }
-    };
-
-    fetch(url, {
-        method: "PATCH",
-        headers: {
-            "Authorization": `Bearer ${airtableApiKey}`,
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(data)
-    })
-    .then(response => {
-        if (!response.ok) {
-            return response.json().then(errData => {
-                throw new Error(`Fehler ${response.status}: ${errData.error.message}`);
-            });
-        }
-        return response.json();
-    })
-    .then(data => {
-        console.log("Fehlermeldung erfolgreich an Airtable gesendet:", data);
-    })
-    .catch(error => {
-        console.error("Fehler beim Senden der Fehlermeldung:", error);
-    });
-}
