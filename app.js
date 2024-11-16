@@ -1,12 +1,51 @@
+// Sprache des Browsers abrufen
+const userLanguage = navigator.language || navigator.userLanguage;
+
+// Funktion zur Bestimmung der Sprache
+function getLanguage() {
+    if (userLanguage.startsWith("de")) {
+        return "de"; // Deutsch
+    } else {
+        return "en"; // Englisch als Standard
+    }
+}
+
+// Aktuelle Sprache festlegen
+const currentLanguage = getLanguage();
+
+// Übersetzungen
+const translations = {
+    de: {
+        statusFetching: "Standort wird ermittelt...",
+        statusSuccess: "Standort erfolgreich gesendet!",
+        statusError: "Fehler beim Senden des Standorts.",
+        geolocationNotSupported: "Geolocation wird von diesem Gerät nicht unterstützt.",
+        geolocationError: "Fehler bei der Standortermittlung: "
+    },
+    en: {
+        statusFetching: "Fetching location...",
+        statusSuccess: "Location successfully sent!",
+        statusError: "Error sending location.",
+        geolocationNotSupported: "Geolocation is not supported by this device.",
+        geolocationError: "Error retrieving location: "
+    }
+};
+
+// Übersetzte Texte verwenden
+function getTranslation(key) {
+    return translations[currentLanguage][key];
+}
+
+// Event-Listener für den Button
 document.getElementById("sendLocationBtn").addEventListener("click", function() {
     const statusElement = document.getElementById("status");
-    statusElement.textContent = "Standort wird ermittelt...";
+    statusElement.textContent = getTranslation("statusFetching");
 
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(success, error);
     } else {
-        statusElement.textContent = "Geolocation wird von diesem Gerät nicht unterstützt.";
-        sendErrorToAirtable("Geolocation wird nicht unterstützt");
+        statusElement.textContent = getTranslation("geolocationNotSupported");
+        sendErrorToAirtable(getTranslation("geolocationNotSupported"));
     }
 
     function success(position) {
@@ -19,8 +58,8 @@ document.getElementById("sendLocationBtn").addEventListener("click", function() 
     }
 
     function error(err) {
-        statusElement.textContent = `Fehler bei der Standortermittlung: ${err.message}`;
-        sendErrorToAirtable(`Fehler bei der Standortermittlung: ${err.message}`);
+        statusElement.textContent = `${getTranslation("geolocationError")}${err.message}`;
+        sendErrorToAirtable(`${getTranslation("geolocationError")}${err.message}`);
     }
 });
 
@@ -49,7 +88,6 @@ function sendLocationToAirtable(lat, long) {
     })
     .then(response => {
         if (!response.ok) {
-            // Hier die Antwort als JSON lesen und im Fehlerfall ausgeben
             return response.json().then(errData => {
                 throw new Error(`Fehler ${response.status}: ${errData.error.message}`);
             });
@@ -57,10 +95,10 @@ function sendLocationToAirtable(lat, long) {
         return response.json();
     })
     .then(data => {
-        document.getElementById("status").textContent = "Standort erfolgreich gesendet!";
+        document.getElementById("status").textContent = getTranslation("statusSuccess");
     })
     .catch(error => {
-        document.getElementById("status").textContent = "Fehler beim Senden des Standorts.";
+        document.getElementById("status").textContent = getTranslation("statusError");
         console.error("Error:", error);
     });
 }
